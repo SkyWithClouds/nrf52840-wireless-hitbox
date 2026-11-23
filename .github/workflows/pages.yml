@@ -5,29 +5,64 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  pages: write
-  id-token: write
-concurrency:
-  group: pages
-  cancel-in-progress: false
 jobs:
-  deploy:
+  sync:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+    concurrency:
+      group: webhid-site-source
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node source/tests/web_test.mjs
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: published
+      - name: Publish static files to the site's designated branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rsync -a --delete --exclude='/.git' --exclude='/.github' source/web-configurator/ published/
+          mkdir -p published/.github/workflows
+          cp source/.github/workflows/pages.yml published/.github/workflows/pages.yml
+          cd published
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish WebHID from $(git -C ../source rev-parse --short HEAD)"
+            git push origin HEAD:gh-pages
+          fi
+          gh workflow run pages.yml --ref gh-pages --repo "$GITHUB_REPOSITORY"
+  deploy:
+    if: github.ref == 'refs/heads/gh-pages'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: webhid-site-deployment
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.publish.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: node tests/web_test.mjs
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web-configurator
-      - name: Deploy configuration page
+          path: .
+      - name: Deploy to GitHub Pages
         id: publish
         uses: actions/deploy-pages@v4
