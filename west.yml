@@ -1,0 +1,18 @@
+manifest:
+  remotes:
+    - name: nordic
+      url-base: https://github.com/nrfconnect
+  projects:
+    - name: nrf
+      remote: nordic
+      repo-path: sdk-nrf
+      revision: 4ab7b98fc76f658249bd8553cf8f9253ff840a53  # v2.9.2
+      import:
+        name-allowlist:
+          - zephyr
+          - hal_nordic
+          - cmsis
+          - nrfxlib
+          - segger
+  self:
+    path: bridge

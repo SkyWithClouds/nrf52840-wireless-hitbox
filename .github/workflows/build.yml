@@ -1,0 +1,40 @@
+name: Hitbox CI
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  protocol:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: scripts/test.sh
+  firmware:
+    needs: protocol
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/nrfconnect/sdk-nrf-toolchain@sha256:d5dac06a877ca7f7bc75f851a7720284796424304045dd681cc6c4a29340ef0c
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: bridge
+      - name: Fetch NCS v2.9.2
+        run: |
+          west init -l bridge
+          west update --narrow -o=--depth=1
+      - name: Build NOLOGO UF2 and verify it against zephyr.bin
+        run: |
+          export ZEPHYR_BASE="$PWD/zephyr"
+          west build --no-sysbuild -b nologo_promicro/nrf52840 -d build bridge/hitbox-nrf52840 -- -DBOARD_ROOT="$PWD/bridge"
+          python3 bridge/scripts/check_uf2.py build/zephyr/zephyr.uf2 build/zephyr/zephyr.bin
+          cp build/zephyr/zephyr.uf2 hitbox-nrf52840-nologo-26000.uf2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hitbox-nrf52840-nologo-26000
+          path: hitbox-nrf52840-nologo-26000.uf2
+          if-no-files-found: error

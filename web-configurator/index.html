@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#ecefe8"><title>Hitbox 配置台 · NOLOGO nRF52840</title>
+<link rel="stylesheet" href="style.css"></head><body>
+<header><div class="brand"><span class="mark" aria-hidden="true">✣</span> HITBOX <span>/</span> 配置台</div>
+<a href="https://github.com/SkyWithClouds/nrf52840-wireless-hitbox">GitHub ↗</a></header>
+<main><div class="top"><div><h1>按键配置</h1><p id="status" role="status">离线编辑 · 连接发射板可读取配置和测试按键。</p></div>
+<button id="connect" class="primary">连接设备</button></div>
+<div class="workspace"><section class="panel surface"><div class="panelhead"><h2>Hitbox 面板</h2><span id="teststate">实时测试未连接</span></div>
+<div class="pad-scroll"><div id="pad" aria-label="18 键布局"></div></div>
+<div class="selection"><label for="mapping" id="keyname"></label><select id="mapping"></select></div>
+<div class="readout"><div><small>设备配置</small><strong id="liveprofile">—</strong></div><div><small>电池估算</small><strong id="battery">—</strong></div><div><small>电压来源</small><strong id="source">—</strong></div></div>
+</section><section class="panel settings"><h2>配置档</h2>
+<nav id="profiles" aria-label="选择编辑的配置档"></nav>
+<label>SOCD 处理<select id="socd"><option>中立</option><option>上优先</option><option>后输入优先</option><option>先输入优先</option></select></label>
+<label>方向输出<select id="output"><option>D-Pad</option><option>左摇杆 LS</option><option>右摇杆 RS</option></select></label>
+<label for="debounce">消抖时间 <output id="debval"></output></label><input type="range" id="debounce" min="1" max="10" step="1">
+<label>启动配置档<select id="active"><option>01</option><option>02</option><option>03</option><option>04</option></select></label>
+<details><summary>电池采样设置</summary><label for="divider">P0.04 电压倍率（0 代表未校准）</label><input id="divider" type="number" min="0" max="5" step=".1"><p>仅在确认板上分压电路后设置 1.5–5.0；默认使用拔线时的电池供电读数。</p></details>
+<button id="save" class="primary" disabled>保存到设备</button>
+<div class="files"><button id="import">导入 JSON</button><button id="export">导出 JSON</button><input type="file" accept=".json,application/json" id="file" hidden></div>
+</section></div></main><footer>NOLOGO ProMicro nRF52840 <span>USB WebHID · 协议 v1.0</span></footer>
+<script type="module" src="app.mjs"></script></body></html>

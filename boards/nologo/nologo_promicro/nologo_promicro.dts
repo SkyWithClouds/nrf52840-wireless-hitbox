@@ -1,0 +1,44 @@
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+
+/ {
+	model = "NOLOGO ProMicro nRF52840";
+	compatible = "nologo,promicro-nrf52840";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &application;
+	};
+};
+
+zephyr_udc0: &usbd {
+	status = "okay";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		partition@0 {
+			label = "mbr-softdevice";
+			reg = <0x0 0x26000>;
+			read-only;
+		};
+		application: partition@26000 {
+			label = "application";
+			reg = <0x26000 0xc6000>;
+		};
+		partition@ec000 {
+			label = "reserved-storage";
+			reg = <0xec000 0x8000>;
+			read-only;
+		};
+		partition@f4000 {
+			label = "bootloader-and-settings";
+			reg = <0xf4000 0xc000>;
+			read-only;
+		};
+	};
+};
