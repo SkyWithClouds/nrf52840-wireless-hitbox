@@ -2,6 +2,9 @@
 #include "rail.h"
 #include <assert.h>
 #define K(i) (1u<<(i))
+static unsigned pins[4],n;
+static void high_z(uint32_t pin) { assert(n<3);pins[n++]=pin; }
+static void disable(uint32_t pin) { assert(n==3);pins[n++]=pin; }
 int main(void)
 {
     struct configuration c;config_defaults(&c);struct engine e={.eager=true};struct playback fx={0};
@@ -17,6 +20,8 @@ int main(void)
     fx.playing=63;e.logical=MENU_BITS|K(UP)|K(DOWN)|K(A)|K(MACRO_1);
     assert(gameplay(&e,p,&fx,&c,false,10).buttons==K(A) && !fx.playing && !fx.pulsing);
     assert(gameplay(&e,p,&fx,&c,false,55).buttons==K(A));
+    isolate_rail(high_z,disable);
+    assert(n==4 && pins[0]==33 && pins[1]==34 && pins[2]==39 && pins[3]==13);
     struct rail rail={0};uint32_t t=UINT32_MAX-4;
     assert(rail_step(&rail,true,t)==RAIL_ENABLE && rail_step(&rail,true,t+12)==RAIL_WAIT);
     assert(rail_step(&rail,true,t+13)==RAIL_DRIVE && rail_step(&rail,false,t+13)==RAIL_ISOLATE_OFF);

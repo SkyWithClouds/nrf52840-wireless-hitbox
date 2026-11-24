@@ -61,3 +61,12 @@ static inline bool pair_accept(struct pairing *p,const struct pair_packet *in,in
     if (!p->receiver && in->op==RECEIPT && m->op==FINAL) p->finished=true;
     return true;
 }
+
+/* Keep the journal when restoring the previous network fails: boot retries it. */
+static inline unsigned finish_network(bool success,bool provisional,struct match previous,
+                                      int (*persist)(struct match),int (*clear_journal)(void))
+{
+    if (!success && provisional && persist(previous)) return 4;
+    if (clear_journal()) return 4;
+    return success?2:3;
+}

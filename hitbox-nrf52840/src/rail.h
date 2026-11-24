@@ -10,3 +10,11 @@ static inline enum rail_action rail_step(struct rail *r,bool want,uint32_t now)
     if (!r->on) {r->on=true;r->raised=now;return RAIL_ENABLE;}
     return now-r->raised<13 ? RAIL_WAIT : RAIL_DRIVE;
 }
+
+enum { RAIL=13, DATA=33, SDA=34, SCL=39 };
+/* Called after releasing TWIM. nrfx cfg_default disconnects the input buffer,
+ * disables output and selects NOPULL. EN must be the final write. */
+static inline void isolate_rail(void (*high_z)(uint32_t),void (*clear_pin)(uint32_t))
+{
+    high_z(DATA);high_z(SDA);high_z(SCL);clear_pin(RAIL);
+}

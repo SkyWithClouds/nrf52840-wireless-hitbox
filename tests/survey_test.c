@@ -1,6 +1,10 @@
 #include "survey.h"
 #include <assert.h>
 #include <stdio.h>
+static struct match flash;
+static bool io_failure,journal;
+static int save(struct match value) { if (io_failure) return -1; flash=value;return 0; }
+static int clear(void) { journal=false;return 0; }
 int main(void)
 {
     uint8_t rf[79],out[64]={0};memset(rf,90,sizeof(rf));
@@ -28,5 +32,12 @@ int main(void)
     assert(pair_accept(&tx,&rx.msg,40) && tx.finished);
     rx.start=UINT32_MAX-20;assert(!pair_expired(&rx,rx.start+14999));
     assert(pair_expired(&rx,rx.start+15000));
+    struct match old=match_factory(PC_RX),candidate=old;candidate.channel=79;
+    flash=candidate;journal=true;io_failure=true;
+    assert(finish_network(false,true,old,save,clear)==4 && journal);
+    io_failure=false;
+    assert(finish_network(false,true,old,save,clear)==3 && !journal && !memcmp(&flash,&old,sizeof(old)));
+    flash=candidate;journal=true;
+    assert(finish_network(true,true,old,save,clear)==2 && !journal && flash.channel==79);
     puts("79-channel survey, interference scoring, nonce binding, bilateral RSSI and pairing timeout passed");
 }

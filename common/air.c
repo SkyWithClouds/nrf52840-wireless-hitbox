@@ -114,7 +114,10 @@ static int measure(unsigned channel,uint8_t *result)
 {
     if (atomic_get(&busy) || (!prx && !esb_is_idle())) return -EBUSY;
     if (prx && esb_stop_rx()) return -EBUSY;
-    if (esb_suspend()) return -EBUSY;
+    if (esb_suspend()) {
+        if (prx && esb_start_rx()) return -EIO;
+        return -EBUSY;
+    }
     uint32_t ints=NRF_RADIO->INTENSET, shorts=NRF_RADIO->SHORTS;
     uint32_t freq=NRF_RADIO->FREQUENCY,addresses=NRF_RADIO->RXADDRESSES;
     NRF_RADIO->INTENCLR=UINT32_MAX;NRF_RADIO->SHORTS=RADIO_SHORTS_READY_START_Msk;
@@ -126,6 +129,7 @@ static int measure(unsigned channel,uint8_t *result)
         NRF_RADIO->EVENTS_RSSIEND=0;NRF_RADIO->TASKS_RSSISTART=1;
         ok=wait_event(&NRF_RADIO->EVENTS_RSSIEND);
         peak=MIN(peak,NRF_RADIO->RSSISAMPLE);
+        NRF_RADIO->TASKS_RSSISTOP=1;
     }
     NRF_RADIO->TASKS_RSSISTOP=1;NRF_RADIO->SHORTS=0;NRF_RADIO->EVENTS_DISABLED=0;
     NRF_RADIO->TASKS_DISABLE=1;ok=wait_event(&NRF_RADIO->EVENTS_DISABLED) && ok;
@@ -189,9 +193,7 @@ static bool random_bytes(uint8_t *dst,size_t n)
 }
 static void end_pair(bool success)
 {
-    if (!success && pairing.stored && match_persist(previous)) pair_status=4;
-    else if (match_checkpoint_clear()) pair_status=4;
-    else pair_status=success?2:3;
+    pair_status=finish_network(success,pairing.stored,previous,match_persist,match_checkpoint_clear);
     active_net=match_saved;
     if (tune(&active_net,false)) pair_status=4;
     pairing_active=pair_requested=false;

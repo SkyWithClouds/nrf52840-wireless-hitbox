@@ -6,7 +6,7 @@
 #include <nrfx_pwm.h>
 #include "display.h"
 
-enum { RAIL=13, DATA=33, SDA=34, SCL=39, RESET_PERIODS=240 };
+enum { RESET_PERIODS=240 };
 static const struct device *const bus=DEVICE_DT_GET(DT_NODELABEL(i2c0));
 static const nrfx_pwm_t pwm=NRFX_PWM_INSTANCE(0);
 #include "rail.h"
@@ -152,8 +152,7 @@ static bool apply(const struct request *r,uint32_t now)
     if (!light.powered) {
         if (op==RAIL_ISOLATE_OFF) {
             end_display(false);
-            nrf_gpio_cfg_default(DATA);
-            nrf_gpio_pin_clear(RAIL);
+            isolate_rail(nrf_gpio_cfg_default,nrf_gpio_pin_clear);
             memset(last_rgb,0,sizeof(last_rgb));
         }
         return !r->sleep && r->settings.accessory==BINARY_LED;
@@ -205,7 +204,6 @@ void match_prepare_boot(void)
     k_mutex_lock(&outputs,K_FOREVER);
     stopping=true;
     end_display(false);
-    nrf_gpio_cfg_default(DATA);
-    nrf_gpio_pin_clear(RAIL);
+    isolate_rail(nrf_gpio_cfg_default,nrf_gpio_pin_clear);
     k_mutex_unlock(&outputs);
 }
