@@ -11,6 +11,11 @@ jobs:
         with:
           node-version: '22'
       - run: scripts/test.sh
+      - name: Exercise the WebHID editor in Chrome
+        run: |
+          python3 -m venv "$RUNNER_TEMP/browser"
+          "$RUNNER_TEMP/browser/bin/pip" install 'playwright==1.55.0'
+          "$RUNNER_TEMP/browser/bin/python" tests/editor_browser.py
   firmware:
     needs: protocol
     runs-on: ubuntu-24.04

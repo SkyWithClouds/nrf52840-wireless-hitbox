@@ -7,7 +7,8 @@ void config_defaults(struct configuration *c)
         LEFT, DOWN, RIGHT, UP, X, Y, RB, LB, A, B, RT, LT,
         BACK, START, LS_CLICK, RS_CLICK, GUIDE, AUX
     };
-    *c = (struct configuration){.version=1};
+    *c = (struct configuration){.version=2};
+    effects_defaults(&c->fx);
     for (unsigned i=0; i<PROFILE_COUNT; ++i) {
         c->profiles[i].debounce = 2;
         memcpy(c->profiles[i].map, layout, sizeof(layout));
@@ -24,7 +25,7 @@ bool profile_valid(const struct profile *p)
 bool config_valid(const struct configuration *c)
 {
     if (c->divider_x10 && (c->divider_x10 < 15 || c->divider_x10 > 50)) return false;
-    if (c->version != 1 || c->active >= PROFILE_COUNT) return false;
+    if (!effects_valid(&c->fx) || c->version != 2 || c->active >= PROFILE_COUNT) return false;
     for (unsigned i=0; i<PROFILE_COUNT; ++i)
         if (!profile_valid(&c->profiles[i])) return false;
     return true;
@@ -42,7 +43,7 @@ static int resolve(uint32_t keys, unsigned negative, unsigned positive,
     if (socd == SOCD_LAST) return -*first;
     return 0;
 }
-struct gp_input engine_scan(struct engine *e, const struct profile *p, uint32_t raw, uint32_t ms)
+void engine_keys(struct engine *e, const struct profile *p, uint32_t raw, uint32_t ms)
 {
     uint32_t logical=0;
     for (unsigned i=0; i<KEY_COUNT; ++i) {
@@ -55,6 +56,9 @@ struct gp_input engine_scan(struct engine *e, const struct profile *p, uint32_t 
     e->raw = raw;
     e->profile_edge = (logical & ~e->logical & MASK(NEXT_PROFILE)) != 0;
     e->logical = logical;
+}
+struct gp_input engine_output(struct engine *e,const struct profile *p,uint32_t logical)
+{
     int x = resolve(logical, LEFT, RIGHT, &e->priority[0], p->socd, false);
     int y = resolve(logical, DOWN, UP, &e->priority[1], p->socd, true);
     struct gp_input out = {.buttons = logical & 0xfff0,
@@ -68,4 +72,10 @@ struct gp_input engine_scan(struct engine *e, const struct profile *p, uint32_t 
         else { out.rx=sx; out.ry=sy; }
     }
     return out;
+}
+
+struct gp_input engine_scan(struct engine *e,const struct profile *p,uint32_t raw,uint32_t ms)
+{
+    engine_keys(e,p,raw,ms);
+    return engine_output(e,p,e->logical);
 }

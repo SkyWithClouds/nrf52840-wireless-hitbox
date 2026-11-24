@@ -7,3 +7,11 @@ header,footer,.top,.panelhead,.selection,.files{display:flex;align-items:center;
 .network fieldset{border:0;padding:0;margin:16px 0 0;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
 .network label{display:grid;gap:4px;font-size:14px}.network input{border:1px solid var(--line);border-radius:6px;padding:8px;width:10em}
 .network table{width:100%;margin-top:18px;border-collapse:collapse;font-size:14px;text-align:left}.network td,.network th{padding:6px;border-bottom:1px solid var(--line)}
+.extensions{margin:18px 0}.extensions fieldset{border:0;padding:0;margin:0;min-width:0}
+.extensions h3{font-size:16px;margin:18px 0 8px}.extensions label{display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0}
+.extensions p{font-size:13px;color:#526458;margin:8px 0}.output-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:18px}
+.extensions input[type=number]{width:6em}.extensions input[type=color]{min-width:40px;border:1px solid var(--line)}
+.checks,.macro-select,#led-map,.stepbar{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.checks label{background:#eef3ea;padding:3px 8px;border-radius:5px;margin:2px 0}
+.step{padding:12px 0;border-top:1px solid var(--line)}.stepbar button{font-size:13px;padding:3px 10px}
+#steps{margin:14px 0}#brightness{max-width:260px}.extensions [hidden]{display:none}

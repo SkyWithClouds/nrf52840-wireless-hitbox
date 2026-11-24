@@ -8,3 +8,9 @@ void radio_step(const struct gp_input *pad, uint32_t us, uint32_t ms);
 int wired_open(void);
 bool wired_tick(const struct gp_input *pad, const struct engine *engine,
                 struct configuration *c, const struct battery *bat, uint32_t ms);
+#include "display.h"
+void accessory_update(const struct settings *s,const struct indicators *v,uint32_t now,
+                      uint32_t idle,bool sleep);
+unsigned wired_player(unsigned slot);
+void radio_indicators(struct indicators *v,unsigned slot);
+bool accessory_delivered(uint64_t session,uint16_t generation);

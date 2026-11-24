@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #pragma once
 #include "engine.h"
-enum { HID_BYTES=64, CMD_READ=1, CMD_BEGIN, CMD_STAGE, CMD_COMMIT, CMD_ABORT };
+enum { HID_BYTES=64, CMD_READ=1, CMD_BEGIN, CMD_STAGE, CMD_COMMIT, CMD_ABORT, CMD_FX_READ, CMD_FX_STAGE };
 struct editor { struct configuration draft; bool editing; };
 int store_open(struct configuration *cfg);
 int store_save(const struct configuration *cfg);

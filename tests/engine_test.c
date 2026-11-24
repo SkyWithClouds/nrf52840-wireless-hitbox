@@ -17,7 +17,7 @@ static void config_test(void)
     write_result=0;config_command(&e,&c,q,r,save);assert(!r[6] && c.active==2 && c.divider_x10==20);
     q[3]=CMD_READ;config_command(&e,&c,q,r,save);assert(!memcmp(r+10,&p,sizeof(p)));
     q[7]=4;config_command(&e,&c,q,r,save);assert(r[6]);
-    p.map[0]=20;assert(!profile_valid(&p));
+    p.map[0]=ACTION_COUNT;assert(!profile_valid(&p));
 }
 int main(void)
 {

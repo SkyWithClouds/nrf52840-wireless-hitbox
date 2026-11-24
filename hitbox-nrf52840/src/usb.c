@@ -219,3 +219,10 @@ bool wired_tick(const struct gp_input *pad,const struct engine *e,struct configu
     }
     return changed;
 }
+
+unsigned wired_player(unsigned slot)
+{
+    unsigned cmd=atomic_get(&lamp);
+    return player_number(atomic_get(&configured) && !atomic_get(&suspended),
+                         cmd & 0x100 ? (int)(cmd & 255) : -1,slot);
+}

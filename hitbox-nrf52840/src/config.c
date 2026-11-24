@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "config.h"
+#include <stddef.h>
 _Static_assert(sizeof(struct profile) == 21, "profile wire format");
-_Static_assert(sizeof(struct configuration) == 87, "NVS schema v1");
+_Static_assert(offsetof(struct configuration, fx) == 87, "NVS schema v1");
 /* HX, version, command, token LE16, result, slot. Profile payload begins at 10. */
 void config_command(struct editor *e, struct configuration *c, const uint8_t *q,
                     uint8_t *r, int (*save)(const struct configuration *))
@@ -12,7 +13,19 @@ void config_command(struct editor *e, struct configuration *c, const uint8_t *q,
     r[7]=slot;
     if (q[0]!='H' || q[1]!='X' || q[2]!=1) { r[6]=1; return; }
     switch (q[3]) {
+    case CMD_FX_READ:
+    case CMD_FX_STAGE: {
+        if (slot>MACRO_COUNT || (q[3]==CMD_FX_STAGE && !e->editing)) { r[6]=2; break; }
+        struct effects *fx=q[3]==CMD_FX_READ ? &c->fx : &e->draft.fx;
+        void *record=slot ? (void *)&fx->macros[slot-1] : (void *)&fx->settings;
+        size_t size=slot ? sizeof(struct macro) : sizeof(struct settings);
+        _Static_assert(sizeof(struct macro)<=HID_BYTES-10 && sizeof(struct settings)==18,"HID records");
+        if (q[3]==CMD_FX_READ) memcpy(r+10,record,size);
+        else memcpy(record,q+10,size);
+        break;
+    }
     case CMD_READ:
+        r[31]=12; /* extended configuration capability */
         if (slot>=PROFILE_COUNT) { r[6]=2; break; }
         memcpy(r+10,&c->profiles[slot],sizeof(struct profile));
         break;
