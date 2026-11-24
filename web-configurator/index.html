@@ -16,6 +16,9 @@
 <label>方向输出<select id="output"><option>D-Pad</option><option>左摇杆 LS</option><option>右摇杆 RS</option></select></label>
 <label for="debounce">消抖时间 <output id="debval"></output></label><input type="range" id="debounce" min="1" max="10" step="1">
 <label>启动配置档<select id="active"><option>01</option><option>02</option><option>03</option><option>04</option></select></label>
+<fieldset id="rules" hidden><legend>赛事设置</legend>
+<label><input type="checkbox" id="eager">按下立即响应</label><label><input type="checkbox" id="locked">赛事锁</label>
+<label><input type="checkbox" id="neutral">锁定时强制中立 SOCD</label></fieldset>
 <details><summary>电池采样设置</summary><label for="divider">P0.04 电压倍率（0 代表未校准）</label><input id="divider" type="number" min="0" max="5" step=".1"><p>仅在确认板上分压电路后设置 1.5–5.0；默认使用拔线时的电池供电读数。</p></details>
 <button id="save" class="primary" disabled>保存到设备</button>
 <div class="files"><button id="import">导入 JSON</button><button id="export">导出 JSON</button><input type="file" accept=".json,application/json" id="file" hidden></div>
@@ -45,6 +48,9 @@
 <button id="random" type="button">随机生成</button>
 <label>信道<select id="channel"></select></label><label><span id="slot-label">发射槽位</span><select id="slots"></select></label>
 <button id="rf-save" class="primary">保存无线参数</button></fieldset>
+<fieldset id="maintenance" hidden><button id="scan">扫描 79 个信道</button><button id="adopt" disabled>采用推荐信道</button>
+<button id="pair">开启 15 秒近场配对</button><button id="dfu">重启到 UF2 盘</button></fieldset>
+<output id="spectrum"></output>
 <table id="stats" hidden><thead><tr><th>槽位</th><th>连接</th><th>收到帧</th><th>漏收心跳</th><th>重复输入</th><th>超时</th></tr></thead><tbody></tbody></table>
 </section></main><footer>NOLOGO ProMicro nRF52840 <span>USB WebHID · 协议 v1.0</span></footer>
 <script type="module" src="app.mjs"></script></body></html>

@@ -7,7 +7,7 @@ void config_defaults(struct configuration *c)
         LEFT, DOWN, RIGHT, UP, X, Y, RB, LB, A, B, RT, LT,
         BACK, START, LS_CLICK, RS_CLICK, GUIDE, AUX
     };
-    *c = (struct configuration){.version=2};
+    *c = (struct configuration){.version=3};
     effects_defaults(&c->fx);
     for (unsigned i=0; i<PROFILE_COUNT; ++i) {
         c->profiles[i].debounce = 2;
@@ -25,7 +25,7 @@ bool profile_valid(const struct profile *p)
 bool config_valid(const struct configuration *c)
 {
     if (c->divider_x10 && (c->divider_x10 < 15 || c->divider_x10 > 50)) return false;
-    if (!effects_valid(&c->fx) || c->version != 2 || c->active >= PROFILE_COUNT) return false;
+    if (!effects_valid(&c->fx) || c->version != 3 || c->eager>1 || c->locked>1 || c->neutral>1 || c->active >= PROFILE_COUNT) return false;
     for (unsigned i=0; i<PROFILE_COUNT; ++i)
         if (!profile_valid(&c->profiles[i])) return false;
     return true;
@@ -49,7 +49,7 @@ void engine_keys(struct engine *e, const struct profile *p, uint32_t raw, uint32
     for (unsigned i=0; i<KEY_COUNT; ++i) {
         uint32_t b = MASK(i);
         if ((raw ^ e->raw) & b) e->changed_ms[i] = ms;
-        if (ms - e->changed_ms[i] >= p->debounce)
+        if ((e->eager && (raw & b)) || ms - e->changed_ms[i] >= p->debounce)
             e->stable = (e->stable & ~b) | (raw & b);
         if (e->stable & b) logical |= MASK(p->map[i]);
     }
@@ -59,8 +59,8 @@ void engine_keys(struct engine *e, const struct profile *p, uint32_t raw, uint32
 }
 struct gp_input engine_output(struct engine *e,const struct profile *p,uint32_t logical)
 {
-    int x = resolve(logical, LEFT, RIGHT, &e->priority[0], p->socd, false);
-    int y = resolve(logical, DOWN, UP, &e->priority[1], p->socd, true);
+    int x = resolve(logical, LEFT, RIGHT, &e->priority[0], e->neutral ? SOCD_NEUTRAL : p->socd, false);
+    int y = resolve(logical, DOWN, UP, &e->priority[1], e->neutral ? SOCD_NEUTRAL : p->socd, true);
     struct gp_input out = {.buttons = logical & 0xfff0,
         .lt = (logical & MASK(LT)) ? 255 : 0, .rt = (logical & MASK(RT)) ? 255 : 0};
     if (p->output == HAT)

@@ -76,7 +76,8 @@ void oled_frame(uint8_t f[1024],const struct indicators *v)
     label(f,0,49,socd[v->socd]); label(f,36,49,dir[v->direction]);
     char player[]={'P',v->player ? (char)('0'+v->player) : '-',0};
     label(f,60,49,player); label(f,76,49,v->wired?"USB":"RF");
-    if (v->turbo) label(f,92,49,"TURBO");
+    if (v->locked) label(f,92,49,"LOCK");
+    else if (v->turbo) label(f,92,49,"TURBO");
     label(f,0,58,"BAT");
     if (v->mv) {
         unsigned pct=v->mv>=4200 ? 100 : v->mv<=3300 ? 0 : (v->mv-3300)/9;

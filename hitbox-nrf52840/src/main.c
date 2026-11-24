@@ -2,11 +2,13 @@
 #include <zephyr/kernel.h>
 #include "hardware.h"
 #include "match.h"
+#include "controls.h"
 int main(void)
 {
     static struct configuration cfg;
     static struct engine keys;
     static struct playback playback;
+    static struct chord gesture;
     static struct battery bat;
     static struct gp_input pad;
     int rc=board_start();
@@ -38,6 +40,7 @@ int main(void)
             if (rebind) for (unsigned i=0;i<KEY_COUNT;i++) {
                 if (keys.stable & (1u<<i)) keys_before |= 1u<<p->map[i];
             }
+            keys.eager=cfg.eager;
             engine_keys(&keys,p,read_keys(),ms);
             if (rebind) { playback.previous=keys_before; rebind=false; }
             if (!keys.stable && !keys.raw) profile_latched=false;
@@ -48,7 +51,13 @@ int main(void)
                 playback=(struct playback){.previous=keys.logical};
                 memset(keys.priority,0,sizeof(keys.priority));
             }
-            pad=engine_output(&keys,p,effects_tick(&playback,&cfg.fx,keys.logical,ms));
+            unsigned action=chord_tick(&gesture,keys.logical,ms,wired);
+            if (action==TOGGLE_LOCK) {
+                struct configuration updated=cfg; updated.locked^=1;
+                if (!store_save(&updated)) { cfg.locked=updated.locked; rescan=true; }
+            } else if (action==OPEN_PAIR) match_pair_start();
+            else if (action==ENTER_UF2) match_boot_request();
+            pad=gameplay(&keys,p,&playback,&cfg,gesture.kind!=0,ms);
         }
         if (keys.raw || keys.stable) activity=ms;
         if (ms-last_battery>=5000) { battery_read(&bat,cfg.divider_x10,wired); last_battery=ms; }
@@ -57,10 +66,11 @@ int main(void)
                 rescan=true; profile_latched=true; last_battery=ms-5000;
             }
         } else radio_step(&pad,k_ticks_to_us_floor32(k_uptime_ticks()),ms);
-        struct indicators view={.keys=keys.stable,.mv=bat.mv,.socd=p->socd,.direction=p->output,
+        struct indicators view={.keys=keys.stable,.mv=bat.mv,.locked=cfg.locked,.socd=keys.neutral ? SOCD_NEUTRAL : p->socd,.direction=p->output,
             .macros=playback.playing,.turbo=playback.pulsing,.wired=wired};
         if (wired) view.player=wired_player(match_saved.slots);
         else radio_indicators(&view,match_saved.slots);
+        match_service();
         bool sleep=wireless && ms-activity>=300000 && !playback.playing;
         accessory_update(&cfg.fx.settings,&view,ms,ms-activity,sleep);
         if (sleep) {

@@ -13,3 +13,8 @@ cc "${flags[@]}" "${common[@]}" tests/peers/{console_pad,console_usb,link}.c tes
 cc "${flags[@]}" "${common[@]}" common/uplink.c hitbox-nrf52840/src/{engine,effects}.c tests/peers/{link,console_pad}.c tests/single_test.c -o "$build/single"
 for test in wire engine effects store pc console single; do "$build/$test"; done
 node tests/web_test.mjs
+
+cc "${flags[@]}" tests/survey_test.c -o "$build/survey"
+"$build/survey"
+cc "${flags[@]}" tests/controls_test.c hitbox-nrf52840/src/{effects,engine}.c -o "$build/controls"
+"$build/controls"

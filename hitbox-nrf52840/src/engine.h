@@ -10,11 +10,11 @@ enum action {
 enum { SOCD_NEUTRAL, SOCD_UP, SOCD_LAST, SOCD_FIRST };
 enum { HAT, LEFT_STICK, RIGHT_STICK };
 struct profile { uint8_t socd, output, debounce, map[KEY_COUNT]; };
-struct configuration { uint8_t version, active, divider_x10; struct profile profiles[PROFILE_COUNT]; struct effects fx; };
+struct configuration { uint8_t version, active, divider_x10; struct profile profiles[PROFILE_COUNT]; struct effects fx; uint8_t eager, locked, neutral; };
 struct engine {
     uint32_t raw, stable, changed_ms[KEY_COUNT], logical;
     int8_t priority[2]; /* First direction held on each opposing pair. Zero means a tie. */
-    bool profile_edge;
+    bool profile_edge, eager, neutral;
 };
 void config_defaults(struct configuration *c);
 bool profile_valid(const struct profile *p);

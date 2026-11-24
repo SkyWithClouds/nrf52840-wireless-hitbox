@@ -7,7 +7,7 @@ export function defaults() {
 }
 const inRange = (x,min,max) => Number.isInteger(x) && x>=min && x<=max;
 export function validate(c) {
-  return (c?.schema===1 || (c?.schema===2 && validEffects(c.effects))) && inRange(c.active,0,3) && (c.divider===0 || inRange(c.divider,15,50)) &&
+  return (c?.schema===1 || (c?.schema===2 && validEffects(c.effects) && (!c.rules || (Array.isArray(c.rules) && c.rules.length===3 && c.rules.every(v=>v===0 || v===1))))) && inRange(c.active,0,3) && (c.divider===0 || inRange(c.divider,15,50)) &&
     Array.isArray(c.profiles) && c.profiles.length===4 && c.profiles.every(p =>
       p && inRange(p.socd,0,3) && inRange(p.output,0,2) && inRange(p.debounce,1,10) &&
       Array.isArray(p.map) && p.map.length===18 && p.map.every(a=>inRange(a,0,c.schema===2?26:19)));
@@ -20,11 +20,12 @@ function featureBytes(view) {
 }
 export class Link {
   constructor(device) { this.device=device; this.token=crypto.getRandomValues(new Uint16Array(1))[0]; }
-  async command(op,slot=0,profile=null,active=0,divider=0,network=null,record=null) {
+  async command(op,slot=0,profile=null,active=0,divider=0,network=null,record=null,rules=null) {
     const q=new Uint8Array(64), token=++this.token & 65535;
     q.set([72,88,1,op,token & 255,token >> 8,0,slot,active,divider]);
     if (network) q.set(network,8);
     if (record) q.set(record,10);
+    if (rules) q.set([13,...rules],32);
     if (profile) q.set([profile.socd,profile.output,profile.debounce,...profile.map],10);
     await this.device.sendFeatureReport(0,q);
     const until=performance.now()+2500;
@@ -42,7 +43,7 @@ export class Link {
     const c=defaults();
     for (let i=0;i<4;i++) {
       const r=await this.command(1,i);
-      if (!i) this.extended=r[31]===12;
+      if (!i) {this.extended=r[31]===12; this.rules=r[32]===13; if(this.rules)c.rules=[...r.slice(33,36)];}
       c.active=r[8]; c.divider=r[9];
       c.profiles[i]={socd:r[10],output:r[11],debounce:r[12],map:Array.from(r.slice(13,31))};
     }
@@ -56,17 +57,18 @@ export class Link {
     if (!validate(c)) throw new Error('配置内容无效');
     if (this.extended===undefined) await this.read();
     if (c.schema===2 && !this.extended) throw new Error('此配置需要 v1.2 固件');
+    if (c.rules && !this.rules) throw new Error('赛事配置需要 v1.3 固件');
     await this.command(2);
     try {
       for (let i=0;i<4;i++) await this.command(3,i,c.profiles[i]);
       if (c.schema===2) for (let i=0;i<=6;i++)
         await this.command(7,i,null,0,0,null,encodeRecord(c.effects,i));
-      await this.command(4,0,null,c.active,c.divider);
+      await this.command(4,0,null,c.active,c.divider,null,null,c.rules);
     } catch(err) { try { await this.command(5); } catch {} throw err; }
     const saved=await this.read();
     if (JSON.stringify(c.profiles.map(p=>[p.socd,p.output,p.debounce,...p.map]))!==
         JSON.stringify(saved.profiles.map(p=>[p.socd,p.output,p.debounce,...p.map])) ||
-        c.active!==saved.active || c.divider!==saved.divider) throw new Error('写后回读不一致');
+        (c.rules && String(c.rules)!==String(saved.rules)) || c.active!==saved.active || c.divider!==saved.divider) throw new Error('写后回读不一致');
     if (c.schema===2 && Array.from({length:7},(_,i)=>i).some(i=>
         encodeRecord(c.effects,i).join()!==encodeRecord(saved.effects,i).join()))
       throw new Error('外设或宏写后回读不一致');
@@ -75,7 +77,7 @@ export class Link {
 }
 export function liveReport(view) {
   if (view.byteLength!==64 || view.getUint8(0)!==72 || view.getUint8(1)!==76 || view.getUint8(2)!==1) return null;
-  return {profile:view.getUint8(3),pressed:view.getUint32(8,true),mv:view.getUint16(32,true),
+  return {locked:!!view.getUint8(39),profile:view.getUint8(3),pressed:view.getUint32(8,true),mv:view.getUint16(32,true),
     source:view.getUint8(34),pinMv:view.getUint16(35,true)};
 }
 
@@ -92,4 +94,11 @@ export function slotStats(view) {
     return [i+1,view.getUint8(p)?'在线':'离线',view.getUint32(p+1,true),view.getUint32(p+5,true),
       view.getUint32(p+9,true),view.getUint16(p+13,true)];
   });
+}
+
+export function scanPage(r,page) {
+  const count=page?39:40;
+  if(r[7]!==page || r[9]!==2+40*page || r[10]!==count || r[8]<2 || r[8]>80)
+    throw Error('扫描结果不完整，请重试');
+  return [...r.slice(11,11+count)].map(v=>-v);
 }

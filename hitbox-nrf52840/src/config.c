@@ -25,7 +25,7 @@ void config_command(struct editor *e, struct configuration *c, const uint8_t *q,
         break;
     }
     case CMD_READ:
-        r[31]=12; /* extended configuration capability */
+        r[32]=13; r[33]=c->eager; r[34]=c->locked; r[35]=c->neutral; r[31]=12; /* extended configuration capability */
         if (slot>=PROFILE_COUNT) { r[6]=2; break; }
         memcpy(r+10,&c->profiles[slot],sizeof(struct profile));
         break;
@@ -39,6 +39,7 @@ void config_command(struct editor *e, struct configuration *c, const uint8_t *q,
     }
     case CMD_COMMIT:
         if (!e->editing) { r[6]=2; break; }
+        if (q[32]==13) { e->draft.eager=q[33]; e->draft.locked=q[34]; e->draft.neutral=q[35]; }
         e->draft.active=q[8]; e->draft.divider_x10=q[9];
         if (!config_valid(&e->draft)) { r[6]=2; break; }
         if (save(&e->draft)) { r[6]=3; break; }

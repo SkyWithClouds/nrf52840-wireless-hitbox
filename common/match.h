@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 enum match_role { HITBOX=1, PC_RX, CONSOLE_RX, BRIDGE_TX };
-enum { MATCH_READ=32, MATCH_WRITE, MATCH_STATS };
+enum { MATCH_READ=32, MATCH_WRITE, MATCH_STATS, MATCH_SCAN, MATCH_PAIR, MATCH_BOOTLOADER };
 struct match { uint8_t base[4], channel, slots; };
 static inline struct match match_factory(enum match_role role)
 {
@@ -27,3 +27,12 @@ extern struct match match_saved;
 extern struct rf_stats match_stats[4];
 void match_init(enum match_role role);
 bool match_command(const uint8_t q[64], uint8_t r[64]);
+int match_persist(struct match m);
+void match_role_init(enum match_role r);
+int match_pair_start(void);
+void match_service(void);
+void match_boot_request(void);
+void air_release(void);
+bool maintenance_command(const uint8_t *q,uint8_t *r);
+int match_checkpoint(struct match old);
+int match_checkpoint_clear(void);

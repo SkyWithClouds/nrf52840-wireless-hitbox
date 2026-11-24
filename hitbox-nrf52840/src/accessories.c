@@ -9,7 +9,10 @@
 enum { RAIL=13, DATA=33, SDA=34, SCL=39, RESET_PERIODS=240 };
 static const struct device *const bus=DEVICE_DT_GET(DT_NODELABEL(i2c0));
 static const nrfx_pwm_t pwm=NRFX_PWM_INSTANCE(0);
-static bool powered, using_bus, oled_ready;
+#include "rail.h"
+static struct rail rail;
+static bool settling;
+static bool using_bus, oled_ready;
 static uint8_t controller,address,screen[1024],sent[1024],last_rgb[RGB_COUNT][3];
 static uint32_t retry_at;
 static bool retry;
@@ -138,24 +141,28 @@ static bool send_rgb(uint8_t colors[RGB_COUNT][3])
     nrf_gpio_cfg_default(DATA);
     return true;
 }
+K_MUTEX_DEFINE(outputs);
+static bool stopping;
 static bool apply(const struct request *r,uint32_t now)
 {
     struct lighting light;
     lights_plan(&r->settings,&r->view,now,r->blank?UINT32_MAX:0,r->sleep,&light);
+    enum rail_action op=rail_step(&rail,light.powered,k_uptime_get_32());
+    settling=op==RAIL_ENABLE || op==RAIL_WAIT;
     if (!light.powered) {
-        if (powered) {
+        if (op==RAIL_ISOLATE_OFF) {
             end_display(false);
             nrf_gpio_cfg_default(DATA);
             nrf_gpio_pin_clear(RAIL);
-            memset(last_rgb,0,sizeof(last_rgb)); powered=false;
+            memset(last_rgb,0,sizeof(last_rgb));
         }
         return !r->sleep && r->settings.accessory==BINARY_LED;
     }
-    if (!powered) {
+    if (op==RAIL_ENABLE) {
         nrf_gpio_pin_set(RAIL);
-        k_sleep(K_MSEC(5)); /* settle the switched 3V3 rail before driving a pin */
-        powered=true;
+        return false;
     }
+    if (settling) return false;
     if (!light.oled) {
         if (using_bus) end_display(true);
         if (r->settings.accessory==BINARY_LED) {
@@ -176,12 +183,15 @@ static void worker(void *a,void *b,void *c)
 {
     ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
     for (;;) {
-        k_sem_take(&pending,K_FOREVER);
+        k_sem_take(&pending,settling ? K_MSEC(1) : K_FOREVER);
         k_spinlock_key_t key=k_spin_lock(&mailbox);
         struct request r=latest;
         uint32_t now=timestamp;
         k_spin_unlock(&mailbox,key);
-        if (apply(&r,now) && r.view.lamp_session) {
+        k_mutex_lock(&outputs,K_FOREVER);
+        bool delivered=!stopping && apply(&r,now);
+        k_mutex_unlock(&outputs);
+        if (delivered && r.view.lamp_session) {
             key=k_spin_lock(&mailbox);
             applied_session=r.view.lamp_session; applied_gen=r.view.lamp_gen;
             k_spin_unlock(&mailbox,key);
@@ -189,3 +199,13 @@ static void worker(void *a,void *b,void *c)
     }
 }
 K_THREAD_DEFINE(accessory_worker,2304,worker,NULL,NULL,NULL,5,0,0);
+
+void match_prepare_boot(void)
+{
+    k_mutex_lock(&outputs,K_FOREVER);
+    stopping=true;
+    end_display(false);
+    nrf_gpio_cfg_default(DATA);
+    nrf_gpio_pin_clear(RAIL);
+    k_mutex_unlock(&outputs);
+}

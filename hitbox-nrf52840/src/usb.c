@@ -92,6 +92,7 @@ static int hid_control(struct usb_setup_packet *s,int32_t *len,uint8_t **data)
         k_spinlock_key_t key=k_spin_lock(&lock);
         memcpy(control_copy,last_feature,HID_BYTES);
         k_spin_unlock(&lock,key);
+        if (!memcmp(control_copy,"HX\1",3) && control_copy[3]==MATCH_BOOTLOADER && !control_copy[6]) match_boot_request();
         *data=control_copy; *len=MIN(s->wLength,HID_BYTES);
         return 0;
     }
@@ -201,6 +202,9 @@ bool wired_tick(const struct gp_input *pad,const struct engine *e,struct configu
         memcpy(last_feature,reply,HID_BYTES);
         k_spin_unlock(&lock,key);
     }
+    static bool last_lock;
+    if (last_lock!=cfg->locked || changed) { count=head=0; have_previous=false; last_lock=cfg->locked; }
+    if (changed) return true; /* rebuild pad under the newly committed policy */
     uint8_t game[20];
     report_game(game,pad);
     if (!have_previous || memcmp(previous,game,20)) {
@@ -212,6 +216,7 @@ bool wired_tick(const struct gp_input *pad,const struct engine *e,struct configu
     if (ms-last_live>=16 && !atomic_get(&hid_busy)) {
         uint8_t live[HID_BYTES]={'H','L',1,cfg->active};
         sys_put_le32(e->raw,live+4); sys_put_le32(e->stable,live+8);
+        live[39]=cfg->locked;
         memcpy(live+12,game,20);
         sys_put_le16(bat->mv,live+32); live[34]=bat->source;
         sys_put_le16(bat->pin_mv,live+35); sys_put_le16(atomic_get(&lamp),live+37);

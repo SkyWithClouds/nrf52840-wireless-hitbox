@@ -6,7 +6,7 @@ struct indicators {
     uint32_t keys;
     uint16_t mv, lamp_gen;
     uint8_t player, socd, direction, macros;
-    bool wired, turbo;
+    bool wired, turbo, locked;
 };
 struct lighting {
     uint8_t rgb[RGB_COUNT][3], binary;

@@ -1,11 +1,12 @@
 import {effectsEditor} from './editor.mjs';
-import {pins,actions,defaults,validate,Link,liveReport,networkBytes,slotStats} from './model.mjs';
+import {scanPage,pins,actions,defaults,validate,Link,liveReport,networkBytes,slotStats} from './model.mjs';
 const $=id=>document.getElementById(id);
 let config=defaults(), tab=0, key=0, device=null, link=null, busy=false;
 const xy=[[11,56],[21,52],[31,56],[37,80],[52,45],[64,38],[76,40],[88,47],
           [52,66],[64,59],[76,61],[88,68],[22,19],[33,19],[44,19],[55,19],[66,19],[77,19]];
 const setStatus=text=>{$('status').textContent=text;};
 const renderEffects=effectsEditor(()=>config.effects,()=>setStatus('当前编辑尚未保存到设备。'));
+let maintenance=false, recommendation=0, lastLock=null;
 let role=0, shownEffects=null;
 const roleNames=['未连接','单板 Hitbox','PC 迷你接收器','主机盒无线桥','外挂发射端'];
 const hex=bytes=>Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
@@ -36,6 +37,12 @@ function render() {
   if (showEffects && shownEffects!==config.effects) {renderEffects(config.effects); shownEffects=config.effects;}
   for (const option of $('mapping').options) option.disabled=option.index>=20 && config.schema===1;
   $('role').textContent=roleNames[role]??'旧版 Hitbox';
+  $('rules').hidden=!editing || !config.rules;
+  $('rules').disabled=busy;
+  if(config.rules) ['eager','locked','neutral'].forEach((id,i)=>$(id).checked=!!config.rules[i]);
+  $('maintenance').hidden=!device || !maintenance;
+  $('maintenance').disabled=busy;
+  $('adopt').disabled=!recommendation;
   $('rf-fields').disabled=busy || !(role>0);
   $('stats').hidden=role!==2;
   $('slots').disabled=role===3;
@@ -56,6 +63,7 @@ function render() {
 }
 function resetDevice() {
   device?.removeEventListener('inputreport',onLive);
+  maintenance=false;lastLock=null;recommendation=0;$('spectrum').textContent='';
   device=null; link=null; role=0;
   $('stats').tBodies[0].replaceChildren();
   for(const b of $('pad').children) b.classList.remove('held');
@@ -72,7 +80,11 @@ function onLive(event) {
   }
   const s=liveReport(event.data); if(!s) return;
   Array.from($('pad').children).forEach((b,i)=>b.classList.toggle('held',!!(s.pressed&(1<<i))));
-  $('teststate').textContent='实时测试已连接'; $('liveprofile').textContent='0'+(s.profile+1);
+  if(config.rules && lastLock!==null && s.locked!==lastLock) {
+    config.rules[1]=Number(s.locked);$('locked').checked=s.locked;
+  }
+  lastLock=s.locked;
+  $('teststate').textContent=s.locked?'实时测试 · LOCK':'实时测试已连接'; $('liveprofile').textContent='0'+(s.profile+1);
   const pct=Math.round(Math.min(1,Math.max(0,(s.mv-3300)/900))*100);
   $('battery').textContent=s.source ? pct+'% · '+(s.mv/1000).toFixed(2)+' V':'待测';
   $('source').textContent=['无有效读数','P0.04 分压','电池供电','上次拔线读数'][s.source]??'未知';
@@ -94,7 +106,7 @@ $('connect').onclick=()=>work(async()=>{
   try {
     try {
       const r=await link.command(32);
-      role=r[7]; if(!roleNames[role] || !role) throw new Error('设备角色无效');
+      maintenance=r[63]===13; role=r[7]; if(!roleNames[role] || !role) throw new Error('设备角色无效');
       $('netid').value=hex(r.slice(8,12)); $('channel').value=r[12]; $('slots').value=r[13];
     } catch(e) { if(chosen.productId!==3) throw e; role=-1; }
     if(role===1 || role===-1) {config=await link.read(); tab=config.active;}
@@ -130,14 +142,45 @@ $('file').onchange=()=>work(async()=>{
   if(!validate(candidate)) throw new Error('JSON 格式或按键参数无效，当前配置已保留');
   if (link && !link.extended && candidate.schema===2) throw new Error('此配置需要 v1.2 固件');
   if (candidate.schema===1 && config.schema===2) Object.assign(candidate,{schema:2,effects:config.effects});
+  if (config.rules && !candidate.rules) candidate.rules=[...config.rules];
   config=candidate;tab=config.active;setStatus('已导入 4 个配置档，保存到设备后生效。');
 });
 $('random').onclick=()=>{$('netid').value=hex(crypto.getRandomValues(new Uint8Array(4)));};
-$('rf-save').onclick=()=>work(async()=>{
+async function saveNetwork(){
   const bytes=networkBytes($('netid').value,Number($('channel').value),Number($('slots').value));
   await link.command(33,0,null,0,0,bytes);
   const r=await link.command(32);
   if(!bytes.every((b,i)=>b===r[8+i])) throw new Error('无线设置回读不一致');
   setStatus(role===1?'已保存并回读；拔线进入无线后生效。':'已保存并回读；请将此板完全断电再上电后生效。');
+}
+$('rf-save').onclick=()=>work(saveNetwork);
+['eager','locked','neutral'].forEach((id,i)=>$(id).onchange=()=>{config.rules[i]=Number($(id).checked);dirty();});
+const delay=ms=>new Promise(ok=>setTimeout(ok,ms));
+$('scan').onclick=()=>work(async()=>{
+  recommendation=0;
+  let r=await link.command(35,0,null,0,0,[1]);
+  const deadline=performance.now()+2500;
+  while(!r[9] && performance.now()<deadline) {await delay(25);r=await link.command(35);}
+  const first=scanPage(r,0),second=scanPage(await link.command(35,1),1);
+  recommendation=r[8];$('spectrum').textContent=first.concat(second).map((v,i)=>(2402+i)+' MHz '+v+' dBm').join(' · ');
+  setStatus('推荐信道 '+recommendation+'。同组设备需要相同信道。');
+});
+$('adopt').onclick=()=>work(async()=>{$('channel').value=recommendation;await saveNetwork();});
+$('pair').onclick=()=>work(async()=>{
+  await link.command(36,0,null,0,0,[1]);setStatus('请贴近对端，在两台板上开启配对。');
+  const deadline=performance.now()+18000;
+  while(performance.now()<deadline) {
+    await delay(250);const r=await link.command(36);
+    if(r[8]===2) {
+      const m=await link.command(32);$('netid').value=hex(m.slice(8,12));$('channel').value=m[12];$('slots').value=m[13];
+      setStatus('配对成功，新网络已保存。');return;
+    }
+    if(r[8]!==1) throw Error(r[8]===3?'配对超时，已恢复原配置':'配对失败，请检查设备配置');
+  }
+  throw Error('等待配对结果超时');
+});
+$('dfu').onclick=()=>work(async()=>{
+  await link.command(37,0,null,0,0,new TextEncoder().encode('UF2!5284'));
+  setStatus('已请求重启，请查看 UF2 盘。');
 });
 elements();render();

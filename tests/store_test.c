@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <zephyr/fs/nvs.h>
 #include "config.h"
 struct nvs_fs match_fs={true};
@@ -26,6 +27,9 @@ int main(void)
     assert(store_open(&loaded)==0 && !memcmp(&c,&loaded,sizeof(c)));
     loaded.fx.settings.accessory=BINARY_LED; loaded.fx.settings.led_map[2]=3;
     loaded.profiles[3].map[0]=MACRO_1+5; c=loaded;
+    current_size=offsetof(struct configuration,eager);memcpy(current,&loaded,current_size);current[0]=2;
+    assert(!store_open(&loaded) && !memcmp(&c,&loaded,sizeof(c)));
+    loaded.locked=loaded.neutral=loaded.eager=1;c=loaded;
     assert(!store_save(&loaded));memset(&loaded,0,sizeof(loaded));
     assert(!store_open(&loaded) && !memcmp(&c,&loaded,sizeof(c)));
     current_size=-EIO; /* an unreadable record leaves safe defaults */

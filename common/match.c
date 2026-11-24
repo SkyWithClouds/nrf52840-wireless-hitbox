@@ -8,9 +8,18 @@ struct rf_stats match_stats[4];
 struct nvs_fs match_fs;
 static bool mounted;
 static enum match_role device_role;
+/* Record 4 exists only during a provisional two-board network change. */
+int match_checkpoint(struct match old)
+{
+    return mounted && nvs_write(&match_fs,4,&old,sizeof(old))>=0 ? 0 : -EIO;
+}
+int match_checkpoint_clear(void)
+{
+    return mounted && nvs_delete(&match_fs,4)>=0 ? 0 : -EIO;
+}
 void match_init(enum match_role role)
 {
-    device_role=role;
+    device_role=role;match_role_init(role);
     match_saved=match_factory(role);
     match_fs=(struct nvs_fs){.flash_device=FIXED_PARTITION_DEVICE(hitbox_nvs),
         .offset=FIXED_PARTITION_OFFSET(hitbox_nvs), .sector_size=4096,
@@ -22,13 +31,24 @@ void match_init(enum match_role role)
         memcpy(&candidate,record+1,sizeof(candidate));
         if (match_valid(candidate,role)) match_saved=candidate;
     }
+    struct match old;
+    if (mounted && nvs_read(&match_fs,4,&old,sizeof(old))==sizeof(old) && match_valid(old,role) &&
+        !match_persist(old)) match_checkpoint_clear();
+}
+int match_persist(struct match m)
+{
+    if (!mounted || !match_valid(m,device_role)) return -EINVAL;
+    uint8_t rec[7]={1};memcpy(rec+1,&m,sizeof(m));
+    if (nvs_write(&match_fs,2,rec,sizeof(rec))<0) return -EIO;
+    match_saved=m;return 0;
 }
 bool match_command(const uint8_t q[64],uint8_t r[64])
 {
-    if (memcmp(q,"HX\1",3) || q[3]<MATCH_READ || q[3]>MATCH_STATS) return false;
+    if (memcmp(q,"HX\1",3) || q[3]<MATCH_READ || q[3]>MATCH_BOOTLOADER) return false;
     memset(r,0,64);
     memcpy(r,q,6);
-    r[7]=device_role;
+    r[7]=device_role;r[63]=13;
+    if (maintenance_command(q,r)) return true;
     if (q[3]==MATCH_WRITE) {
         struct match m;
         memcpy(&m,q+8,sizeof(m));

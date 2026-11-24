@@ -28,6 +28,7 @@ with ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietServer, directory=root))
         const rows = cfg.profiles.map(p => [p.socd, p.output, p.debounce, ...p.map]);
         const fx = Array.from({length:7}, (_,i) => encodeRecord(cfg.effects,i));
         class Board extends EventTarget {
+            rules=[0,0,0];net=[183,70,50,218,40,1];
             productId=3;
             async open(){ this.opened=true; }
             async close(){ this.opened=false; }
@@ -35,13 +36,17 @@ with ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietServer, directory=root))
                 if (id || q.length!==64) throw Error('report size');
                 const op=q[3], n=q[7];
                 this.r=new Uint8Array(64); this.r.set(q.slice(0,8));
-                if (op===32) { this.r.set([1,183,70,50,218,40,1],7); return; }
-                if (op===1) {this.r.set(rows[n],10);this.r[31]=12;}
+                if (op===32) { this.r.set([1,...this.net],7);this.r[63]=13; return; }
+                if (op===1) {this.r.set(rows[n],10);this.r[31]=12;this.r.set([13,...this.rules],32);}
                 if (op===2) this.draft=[structuredClone(rows),structuredClone(fx)];
                 if (op===3) this.draft[0][n]=[...q.slice(10,31)];
                 if (op===6) this.r.set(fx[n],10);
                 if (op===7) this.draft[1][n]=[...q.slice(10,n?61:28)];
-                if (op===4) { rows.splice(0,4,...this.draft[0]);fx.splice(0,7,...this.draft[1]); }
+                if(op===33)this.net=[...q.slice(8,14)];
+                if(op===35){this.r.set([66,2+n*40,n?39:40],8);this.r.fill(90,11,11+(n?39:40));}
+                if(op===36)this.r[8]=q[8]?1:2;
+                if(op===37 && String.fromCharCode(...q.slice(8,16))!=="UF2!5284")this.r[6]=2;
+                if (op===4) {this.rules=[...q.slice(33,36)]; rows.splice(0,4,...this.draft[0]);fx.splice(0,7,...this.draft[1]); }
             }
             async receiveFeatureReport(){ return new DataView(this.r.buffer); }
         }
@@ -51,6 +56,17 @@ with ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietServer, directory=root))
     }""")
     page.locator('#connect').click()
     expect(page.locator('#status')).to_contain_text('已读取')
+    page.locator('#eager').check()
+    page.locator('#locked').check()
+    page.locator('#neutral').check()
+    page.locator('#scan').click()
+    expect(page.locator('#spectrum')).to_contain_text('2480 MHz -90 dBm')
+    page.locator('#adopt').click()
+    expect(page.locator('#channel')).to_have_value('66')
+    page.locator('#pair').click()
+    expect(page.locator('#status')).to_contain_text('配对成功')
+    page.locator('#dfu').click()
+    expect(page.locator('#status')).to_contain_text('已请求重启')
     page.locator('#mapping').select_option('26')
     page.locator('#accessory').select_option(index=3)
     page.locator('#led-map select').nth(4).select_option('3')
@@ -71,6 +87,8 @@ with ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietServer, directory=root))
     expect(page.locator('#steps input[type=number]').first).to_have_value('321')
     expect(page.locator('#steps').get_by_role('checkbox',name='RT',exact=True)).to_be_checked()
     expect(page.locator('#led-map select').nth(4)).to_have_value('3')
+    expect(page.locator('#locked')).to_be_checked()
+    expect(page.locator('#eager')).to_be_checked()
     expect(page.locator('#count')).to_have_value('18')
     expect(page.locator('#hz')).to_have_value('30')
     expect(page.locator('#mapping')).to_have_value('26')
