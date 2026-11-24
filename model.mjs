@@ -19,9 +19,10 @@ function featureBytes(view) {
 }
 export class Link {
   constructor(device) { this.device=device; this.token=crypto.getRandomValues(new Uint16Array(1))[0]; }
-  async command(op,slot=0,profile=null,active=0,divider=0) {
+  async command(op,slot=0,profile=null,active=0,divider=0,network=null) {
     const q=new Uint8Array(64), token=++this.token & 65535;
     q.set([72,88,1,op,token & 255,token >> 8,0,slot,active,divider]);
+    if (network) q.set(network,8);
     if (profile) q.set([profile.socd,profile.output,profile.debounce,...profile.map],10);
     await this.device.sendFeatureReport(0,q);
     const until=performance.now()+2500;
@@ -63,4 +64,19 @@ export function liveReport(view) {
   if (view.byteLength!==64 || view.getUint8(0)!==72 || view.getUint8(1)!==76 || view.getUint8(2)!==1) return null;
   return {profile:view.getUint8(3),pressed:view.getUint32(8,true),mv:view.getUint16(32,true),
     source:view.getUint8(34),pinMv:view.getUint16(35,true)};
+}
+
+export function networkBytes(id,channel,slots) {
+  if (!/^[a-f0-9]{8}$/i.test(id) || !inRange(channel,2,80) || !inRange(slots,1,4))
+    throw new Error('请输入 8 位十六进制 ID、2–80 信道和 1–4 槽位。');
+  return Uint8Array.from([...id.match(/../g).map(v=>parseInt(v,16)),channel,slots]);
+}
+export function slotStats(view) {
+  if (view.byteLength!==64 || view.getUint8(0)!==82 || view.getUint8(1)!==83 ||
+      view.getUint8(2)!==1 || !inRange(view.getUint8(3),1,4)) return null;
+  return Array.from({length:view.getUint8(3)},(_,i)=>{
+    const p=4+15*i;
+    return [i+1,view.getUint8(p)?'在线':'离线',view.getUint32(p+1,true),view.getUint32(p+5,true),
+      view.getUint32(p+9,true),view.getUint16(p+13,true)];
+  });
 }
