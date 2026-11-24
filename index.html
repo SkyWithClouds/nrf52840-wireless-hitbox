@@ -20,6 +20,25 @@
 <button id="save" class="primary" disabled>保存到设备</button>
 <div class="files"><button id="import">导入 JSON</button><button id="export">导出 JSON</button><input type="file" accept=".json,application/json" id="file" hidden></div>
 </section></div>
+<section class="panel extensions" id="extensions"><div class="panelhead"><h2>连发、宏与外设</h2>
+<button id="save-fx" class="primary" disabled>保存到设备</button></div>
+<fieldset id="fx-fields"><div class="output-grid"><section><h3>玩家指示</h3>
+<label>共享引脚输出<select id="accessory"><option>关闭</option><option>SSD1306 OLED</option><option>SH1106 OLED</option><option>双 LED</option></select></label>
+<div id="oled-controls"><label>自动息屏<select id="idle"><option value="30">30 秒</option><option value="60">60 秒</option></select></label>
+<label>I²C 地址<select id="address"><option value="60">0x3C</option><option value="61">0x3D</option></select></label></div>
+<div id="binary-controls"><p>两位依次是 LED1、LED0。1 表示亮。</p><div id="led-map"></div></div></section>
+<section><h3>RGB 灯带</h3>
+<label>灯效<select id="rgbMode"><option>关闭</option><option>静态单色</option><option>按键亮灯</option><option>呼吸</option><option>彩虹</option></select></label>
+<div id="rgb-controls"><label>灯珠数量<input type="number" id="count" min="1" max="18"></label>
+<label>颜色<input id="color" type="color"></label><label for="brightness">最大亮度 <output id="bright-value"></output></label>
+<input id="brightness" type="range" min="0" max="64"><p id="current"></p></div></section></div>
+<details><summary>接线与电源极性</summary><p>P1.02 / P1.07 用作 SDA / SCL 或 LED0 / LED1。P1.01 接 RGB DIN。原理图中 P0.13 高电平开启 ME6217，低电平切断 EXTVCC。换板前空载测量。OLED 和灯带共用此 3.3 V 电源域。最大亮度为 64/255，固件按约 100 mA RGB 预算缩放，全白时可能自动变暗。</p></details>
+<h3>Turbo 连发</h3><label>频率（Hz）<input type="number" id="hz" min="5" max="30"></label>
+<p>勾选的动作默认连发。在上方面板将一个按键映射为 Turbo，再按 Turbo + 动作键，可临时切换该动作。</p><div id="allow" class="checks"></div>
+<h3>宏编辑器</h3><div class="macro-select"><label>编辑宏<select id="macro-index"></select></label>
+<label>播放方式<select id="macro-mode"><option>单次播放</option><option>按住循环</option><option>再按打断</option></select></label></div>
+<p>在上方面板把实体键映射为对应宏。每步勾选同时按下的动作，间隔期间释放该宏的动作。</p>
+<div id="steps"></div><button id="add-step" type="button">添加一步</button></fieldset></section>
 <section class="panel network"><div class="panelhead"><h2>无线匹配与接收器管理</h2><span id="role">未连接</span></div>
 <p>发射端和接收端使用相同的网络 ID 与信道；每台发射端选择独立槽位。</p>
 <fieldset id="rf-fields" disabled><label>网络 ID（8 位十六进制）<input id="netid" maxlength="8" value="B74632DA" spellcheck="false"></label>

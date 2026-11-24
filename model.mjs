@@ -1,15 +1,16 @@
+import {defaultEffects,validEffects,encodeRecord,decodeRecord} from './effects.mjs';
 export const pins = ['P0.06','P0.08','P0.17','P0.20','P0.22','P0.24','P1.00','P0.11','P1.04','P1.06','P0.09','P0.10','P1.11','P1.13','P1.15','P0.02','P0.29','P0.31'];
-export const actions = ['↑','↓','←','→','Start','Back','LS 点击','RS 点击','LB','RB','Guide','AUX','A','B','X','Y','LT','RT','禁用','下一配置'];
+export const actions = ['↑','↓','←','→','Start','Back','LS 点击','RS 点击','LB','RB','Guide','AUX','A','B','X','Y','LT','RT','禁用','下一配置','Turbo',...Array.from({length:6},(_,i)=>'宏 '+(i+1))];
 const layout = [2,1,3,0,14,15,9,8,12,13,17,16,5,4,6,7,10,11];
 export function defaults() {
-  return {schema:1,active:0,divider:0,profiles:Array.from({length:4},()=>({socd:0,output:0,debounce:2,map:[...layout]}))};
+  return {schema:2,effects:defaultEffects(),active:0,divider:0,profiles:Array.from({length:4},()=>({socd:0,output:0,debounce:2,map:[...layout]}))};
 }
 const inRange = (x,min,max) => Number.isInteger(x) && x>=min && x<=max;
 export function validate(c) {
-  return c?.schema===1 && inRange(c.active,0,3) && (c.divider===0 || inRange(c.divider,15,50)) &&
+  return (c?.schema===1 || (c?.schema===2 && validEffects(c.effects))) && inRange(c.active,0,3) && (c.divider===0 || inRange(c.divider,15,50)) &&
     Array.isArray(c.profiles) && c.profiles.length===4 && c.profiles.every(p =>
       p && inRange(p.socd,0,3) && inRange(p.output,0,2) && inRange(p.debounce,1,10) &&
-      Array.isArray(p.map) && p.map.length===18 && p.map.every(a=>inRange(a,0,19)));
+      Array.isArray(p.map) && p.map.length===18 && p.map.every(a=>inRange(a,0,c.schema===2?26:19)));
 }
 function featureBytes(view) {
   let data=new Uint8Array(view.buffer,view.byteOffset,view.byteLength);
@@ -19,10 +20,11 @@ function featureBytes(view) {
 }
 export class Link {
   constructor(device) { this.device=device; this.token=crypto.getRandomValues(new Uint16Array(1))[0]; }
-  async command(op,slot=0,profile=null,active=0,divider=0,network=null) {
+  async command(op,slot=0,profile=null,active=0,divider=0,network=null,record=null) {
     const q=new Uint8Array(64), token=++this.token & 65535;
     q.set([72,88,1,op,token & 255,token >> 8,0,slot,active,divider]);
     if (network) q.set(network,8);
+    if (record) q.set(record,10);
     if (profile) q.set([profile.socd,profile.output,profile.debounce,...profile.map],10);
     await this.device.sendFeatureReport(0,q);
     const until=performance.now()+2500;
@@ -40,23 +42,34 @@ export class Link {
     const c=defaults();
     for (let i=0;i<4;i++) {
       const r=await this.command(1,i);
+      if (!i) this.extended=r[31]===12;
       c.active=r[8]; c.divider=r[9];
       c.profiles[i]={socd:r[10],output:r[11],debounce:r[12],map:Array.from(r.slice(13,31))};
     }
+    if (this.extended) {
+      for (let i=0;i<=6;i++) decodeRecord(c.effects,i,(await this.command(6,i)).subarray(10));
+    } else { c.schema=1; delete c.effects; }
     if (!validate(c)) throw new Error('设备配置格式异常');
     return c;
   }
   async save(c) {
     if (!validate(c)) throw new Error('配置内容无效');
+    if (this.extended===undefined) await this.read();
+    if (c.schema===2 && !this.extended) throw new Error('此配置需要 v1.2 固件');
     await this.command(2);
     try {
       for (let i=0;i<4;i++) await this.command(3,i,c.profiles[i]);
+      if (c.schema===2) for (let i=0;i<=6;i++)
+        await this.command(7,i,null,0,0,null,encodeRecord(c.effects,i));
       await this.command(4,0,null,c.active,c.divider);
     } catch(err) { try { await this.command(5); } catch {} throw err; }
     const saved=await this.read();
     if (JSON.stringify(c.profiles.map(p=>[p.socd,p.output,p.debounce,...p.map]))!==
         JSON.stringify(saved.profiles.map(p=>[p.socd,p.output,p.debounce,...p.map])) ||
         c.active!==saved.active || c.divider!==saved.divider) throw new Error('写后回读不一致');
+    if (c.schema===2 && Array.from({length:7},(_,i)=>i).some(i=>
+        encodeRecord(c.effects,i).join()!==encodeRecord(saved.effects,i).join()))
+      throw new Error('外设或宏写后回读不一致');
     return saved;
   }
 }

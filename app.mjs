@@ -1,10 +1,12 @@
+import {effectsEditor} from './editor.mjs';
 import {pins,actions,defaults,validate,Link,liveReport,networkBytes,slotStats} from './model.mjs';
 const $=id=>document.getElementById(id);
 let config=defaults(), tab=0, key=0, device=null, link=null, busy=false;
 const xy=[[11,56],[21,52],[31,56],[37,80],[52,45],[64,38],[76,40],[88,47],
           [52,66],[64,59],[76,61],[88,68],[22,19],[33,19],[44,19],[55,19],[66,19],[77,19]];
 const setStatus=text=>{$('status').textContent=text;};
-let role=0;
+const renderEffects=effectsEditor(()=>config.effects,()=>setStatus('当前编辑尚未保存到设备。'));
+let role=0, shownEffects=null;
 const roleNames=['未连接','单板 Hitbox','PC 迷你接收器','主机盒无线桥','外挂发射端'];
 const hex=bytes=>Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
 function elements() {
@@ -27,6 +29,12 @@ function render() {
   const editing=!device || role===1 || role===-1;
   document.querySelector('.workspace').hidden=!editing;
   document.querySelector('.workspace').style.display=editing?'':'none';
+  const showEffects=editing && config.schema===2;
+  $('extensions').hidden=!showEffects;
+  $('fx-fields').disabled=busy;
+  $('save-fx').disabled=busy || !link;
+  if (showEffects && shownEffects!==config.effects) {renderEffects(config.effects); shownEffects=config.effects;}
+  for (const option of $('mapping').options) option.disabled=option.index>=20 && config.schema===1;
   $('role').textContent=roleNames[role]??'旧版 Hitbox';
   $('rf-fields').disabled=busy || !(role>0);
   $('stats').hidden=role!==2;
@@ -97,8 +105,9 @@ navigator.hid?.addEventListener('disconnect',event=>{
   if(event.device===device) { resetDevice(); setStatus('设备已拔出，编辑内容仍保留在本页。'); }
 });
 $('save').onclick=()=>work(async()=>{
-  config=await link.save(config); setStatus('已写入设备，并回读核对 4 个配置档。');
+  config=await link.save(config); setStatus('已写入设备，并回读核对配置。');
 });
+$('save-fx').onclick=()=>$('save').click();
 const dirty=()=>{render();setStatus('当前编辑尚未保存到设备。');};
 $('mapping').onchange=e=>{config.profiles[tab].map[key]=Number(e.target.value);dirty();};
 for (const name of ['socd','output']) $(name).onchange=e=>{config.profiles[tab][name]=e.target.selectedIndex;dirty();};
@@ -119,6 +128,8 @@ $('file').onchange=()=>work(async()=>{
   if(f.size>32768) throw new Error('JSON 文件过大');
   const candidate=JSON.parse(await f.text());
   if(!validate(candidate)) throw new Error('JSON 格式或按键参数无效，当前配置已保留');
+  if (link && !link.extended && candidate.schema===2) throw new Error('此配置需要 v1.2 固件');
+  if (candidate.schema===1 && config.schema===2) Object.assign(candidate,{schema:2,effects:config.effects});
   config=candidate;tab=config.active;setStatus('已导入 4 个配置档，保存到设备后生效。');
 });
 $('random').onclick=()=>{$('netid').value=hex(crypto.getRandomValues(new Uint8Array(4)));};
