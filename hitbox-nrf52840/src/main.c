@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include <zephyr/kernel.h>
 #include "hardware.h"
+#include "match.h"
 int main(void)
 {
     static struct configuration cfg;
@@ -8,6 +9,7 @@ int main(void)
     static struct battery bat;
     int rc=board_start();
     if (rc) return rc;
+    match_init(HITBOX);
     store_open(&cfg); /* Standards-compliant defaults remain playable after a storage fault. */
     rc=wired_open();
     if (rc) return rc;

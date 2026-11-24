@@ -20,3 +20,15 @@ assert.deepEqual(await link.save(initial),initial);
 const live=new Uint8Array(64);live.set([72,76,1,2]);live[8]=8;live[34]=3;
 assert.equal(liveReport(new DataView(live.buffer)).pressed,8);
 console.log('WebHID schema, transactions, round-trip and live report passed');
+const {networkBytes,slotStats}=await import('../web-configurator/model.mjs');
+const factory=networkBytes('b74632da',40,2);
+assert.deepEqual([...factory],[183,70,50,218,40,2]);
+for(const args of [['0000000G',40,1],['00000000',81,2],['12345678',1,1],['11111111',40,5]])
+  assert.throws(()=>networkBytes(...args));
+await link.command(33,0,null,0,0,factory);
+assert.deepEqual([...reply.slice(10,14)],[50,218,40,2]);
+const status=new DataView(new ArrayBuffer(64));
+[82,83,1,4].forEach((b,i)=>status.setUint8(i,b));
+status.setUint8(19,1);status.setUint32(24,314,true);
+assert.deepEqual(slotStats(status)[1],[2,'在线',0,314,0,0]);
+assert.equal(slotStats(status)[0][1],'离线');

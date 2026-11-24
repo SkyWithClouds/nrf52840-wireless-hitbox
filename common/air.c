@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "air.h"
+#include "match.h"
+static uint8_t local_pipe, pipe_mask;
 #include <esb.h>
 #include <zephyr/kernel.h>
 #include <zephyr/random/random.h>
@@ -45,20 +47,21 @@ int air_start(bool receiver)
 	cfg.mode = prx ? ESB_MODE_PRX : ESB_MODE_PTX;
 	cfg.protocol = ESB_PROTOCOL_ESB_DPL;
 	cfg.bitrate = ESB_BITRATE_2MBPS;
-	cfg.retransmit_delay = 600;
+	local_pipe = receiver ? 1 : match_saved.slots;
+    pipe_mask = match_mask(match_saved, receiver);
+    cfg.retransmit_delay = match_delay(local_pipe);
 	cfg.retransmit_count = 2;
 	cfg.selective_auto_ack = true;
 	cfg.event_handler = event;
-	const uint8_t base[4] = {0xb7, 0x46, 0x32, 0xda};
-	const uint8_t prefix = 0xc5;
-	if ((rc = esb_init(&cfg)) || (rc = esb_set_base_address_0(base)) ||
-	    (rc = esb_set_prefixes(&prefix, 1)) || (rc = esb_set_rf_channel(40))) return rc;
-	return prx ? esb_start_rx() : 0;
+	if ((rc = esb_init(&cfg)) || (rc = esb_set_base_address_1(match_saved.base)) ||
+        (rc = esb_set_prefixes(match_prefix,5)) || (rc = esb_enable_pipes(pipe_mask)) ||
+        (rc = esb_set_rf_channel(match_saved.channel))) return rc;
+    return prx ? esb_start_rx() : 0;
 }
 
-bool air_send(const struct gp_frame *frame)
+bool air_send_pipe(uint8_t pipe, const struct gp_frame *frame)
 {
-	struct esb_payload p = {.pipe = 0, .length = GP_WIRE_SIZE};
+	struct esb_payload p = {.pipe = pipe, .length = GP_WIRE_SIZE};
 	if (!gp_encode(p.data, p.length, frame)) return false;
 	if (!prx && !atomic_cas(&busy, 0, 1)) return false;
 	if (esb_write_payload(&p) == 0) return true;
@@ -66,11 +69,17 @@ bool air_send(const struct gp_frame *frame)
 	return false;
 }
 
-bool air_receive(struct gp_frame *frame)
+bool air_receive_pipe(uint8_t *pipe, struct gp_frame *frame)
 {
 	struct esb_payload p;
 	while (esb_read_rx_payload(&p) == 0) {
-		if (p.pipe == 0 && gp_decode(frame, p.data, p.length)) return true;
+		if (p.pipe<5 && (pipe_mask & (1u << p.pipe)) && gp_decode(frame,p.data,p.length)) {
+            *pipe=p.pipe;
+            return true;
+        }
 	}
 	return false;
 }
+
+bool air_send(const struct gp_frame *f) { return air_send_pipe(local_pipe,f); }
+bool air_receive(struct gp_frame *f) { uint8_t pipe; return air_receive_pipe(&pipe,f); }

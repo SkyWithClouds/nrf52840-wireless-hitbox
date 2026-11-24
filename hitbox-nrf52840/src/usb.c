@@ -7,6 +7,7 @@
 #include <usb_descriptor.h>
 
 #include "hardware.h"
+#include "match.h"
 enum { EP_IN = 0x81, EP_OUT = 0x02, MPS = 32, MS_REQUEST = 0x20 };
 
 struct xinput_descriptors {
@@ -194,7 +195,7 @@ bool wired_tick(const struct gp_input *pad,const struct engine *e,struct configu
     bool changed=false;
     if (!k_msgq_get(&commands,&cmd,K_NO_WAIT) && cmd.epoch==seen) {
         uint8_t reply[HID_BYTES];
-        config_command(&edit,cfg,cmd.data,reply,store_save);
+        if (!match_command(cmd.data,reply)) config_command(&edit,cfg,cmd.data,reply,store_save);
         changed = cmd.data[3]==CMD_COMMIT && reply[6]==0;
         k_spinlock_key_t key=k_spin_lock(&lock);
         memcpy(last_feature,reply,HID_BYTES);
